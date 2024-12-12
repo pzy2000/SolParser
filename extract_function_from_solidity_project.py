@@ -5,7 +5,7 @@ parser = TestParser("/root/openzeppelin-contracts/libtree-sitter-solidity.so", "
 buggy_function = dict()
 
 # for project in projects:
-buggy_classes = parser.parse_file("contracts/governance/Governor.sol")
+buggy_classes = parser.parse_file("/root/openzeppelin-contracts/contracts/governance/Governor.sol")
 buggy_methods = dict()
 # print("buggy_classes:")
 pprint(buggy_classes)
