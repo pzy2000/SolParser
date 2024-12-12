@@ -1,3 +1,5 @@
+from pprint import pprint
+
 from tree_sitter import Language, Parser
 from typing import List, Dict, Any, Set, Optional
 
@@ -60,14 +62,30 @@ class TestParser():
             #     print("child.text", child.text)
             for child in (child for child in _class.children if child.type == 'contract_body'):
                 # print("child.type", child.type)
+                prev_node = None
                 for _, node in enumerate(child.children):
+                    # print("node.type", node.type)
+                    # print("node.text", str(node.text, encoding='utf-8'))
+                    if node.type == "fallback_receive_definition" \
+                            or node.type == "state_variable_declaration" \
+                            or node.type == "modifier_definition" \
+                            or node.type == "constructor_definition" \
+                            or node.type == "struct_declaration":
+                        # print("node.text", str(node.text, encoding="utf-8"))
+                        # print("type of node.text", type(node.text))
+                        pass
                     if node.type == 'event_definition' or node.type == 'function_definition':
                         # Read Method metadata
                         method_metadata = TestParser.get_function_metadata(class_identifier, node, content)
+                        if prev_node.type == 'comment':
+                            method_metadata['comment'] = prev_node.text
+                            # print("==================")
+                            # print(method_metadata['comment'])
+                            # print("==================")
                         methods.append(method_metadata)
+                    prev_node = node
             class_metadata['methods'] = methods
             parsed_classes.append(class_metadata)
-
         return parsed_classes
 
     @staticmethod
@@ -97,7 +115,7 @@ class TestParser():
         interfaces = class_node.child_by_field_name('interfaces')
         if interfaces:
             metadata['interfaces'] = TestParser.match_from_span(interfaces, blob)
-        
+
         # Fields
         fields = TestParser.get_class_fields(class_node, blob)
         metadata['fields'] = fields
@@ -113,7 +131,7 @@ class TestParser():
                 is_header = True
             elif n.type == ':':
                 break
-        print("metadata", metadata)
+        # print("metadata", metadata)
         return metadata
 
     @staticmethod
@@ -184,13 +202,18 @@ class TestParser():
         TestParser.traverse_type(function_node, declarators, '{}_definition'.format(function_node.type.split('_')[0]))
         parameters = []
         for i, n in enumerate(declarators[0].children):
+            # print("num:", i)
+            # print("n.text:", n.text)
+            # print("n.type:", n.type)
             if n.type == 'comment':
                 metadata['comment'] = n.text
+                # print("comment:", metadata['comment'])
+                # print("metadata['comment']", metadata['comment'])
             if n.type == 'identifier':
                 metadata['identifier'] = TestParser.match_from_span(n, blob).strip('(')
-            elif n.type == 'formal_parameters':
+            elif n.type == 'parameter':
                 parameters.append(TestParser.match_from_span(n, blob))
-        metadata['parameters'] = ' '.join(parameters)
+        metadata['parameters'] = ', '.join(parameters)
 
         # Body
         metadata['body'] = TestParser.match_from_span(function_node, blob)
@@ -202,14 +225,17 @@ class TestParser():
         metadata['constructor'] = False
         if "constructor" in function_node.type:
             metadata['constructor'] = True
-
+        # print(metadata)
+        # exit()
+        if metadata['identifier'].startswith('test'):
+            metadata['testcase'] = True
         # Test Case
-        modifiers_node_list = TestParser.children_of_type(function_node, "modifiers")
-        metadata['testcase'] = False
-        for m in modifiers_node_list:
-            modifier = TestParser.match_from_span(m, blob)
-            if '@Test' in modifier:
-                metadata['testcase'] = True
+        # modifiers_node_list = TestParser.children_of_type(function_node, "modifiers")
+        # metadata['testcase'] = False
+        # for m in modifiers_node_list:
+        #     modifier = TestParser.match_from_span(m, blob)
+        #     if '@Test' in modifier:
+        #         metadata['testcase'] = True
 
         # Method Invocations
         invocation = []
@@ -234,7 +260,6 @@ class TestParser():
                                                          metadata['identifier'], metadata['parameters'])
         metadata['class_method_signature'] = '{}.{}{}'.format(class_identifier, metadata['identifier'],
                                                               metadata['parameters'])
-
         return metadata
 
     def get_method_names(self, file):
