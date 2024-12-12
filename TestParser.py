@@ -1,13 +1,9 @@
 from pprint import pprint
-
 from tree_sitter import Language, Parser
 from typing import List, Dict, Any, Set, Optional
 
 
-# from pprint import pprint
-
 class TestParser():
-
     def __init__(self, grammar_file, language):
         JAVA_LANGUAGE = Language(grammar_file, language)
         self.parser = Parser()
@@ -17,7 +13,6 @@ class TestParser():
         """
 		Parses a java file and extract metadata of all the classes and methods defined
 		"""
-
         # Build Tree
         with open(file, 'r') as content_file:
             try:
@@ -36,8 +31,8 @@ class TestParser():
         # print("classes:", classes)
         # pprint(tree.root_node.sexp())
         # for i, child in enumerate(tree.root_node.children):
-        print("-----------------------------------------")
-        print("-----------------------------------------")
+        # print("-----------------------------------------")
+        # print("-----------------------------------------")
         # for i, child in enumerate(classes):
         #     print("children", i,  ":", child.type)
         #     print("children", i, ":",  child.text)
@@ -62,7 +57,7 @@ class TestParser():
             #     print("child.text", child.text)
             for child in (child for child in _class.children if child.type == 'contract_body'):
                 # print("child.type", child.type)
-                prev_node = None
+                prev_node_pool = ""
                 for _, node in enumerate(child.children):
                     # print("node.type", node.type)
                     # print("node.text", str(node.text, encoding='utf-8'))
@@ -74,16 +69,22 @@ class TestParser():
                         # print("node.text", str(node.text, encoding="utf-8"))
                         # print("type of node.text", type(node.text))
                         pass
-                    if node.type == 'event_definition' or node.type == 'function_definition':
+                    # if node.type == 'event_definition' or node.type == 'function_definition':
+                    if node.type == 'function_definition':
                         # Read Method metadata
                         method_metadata = TestParser.get_function_metadata(class_identifier, node, content)
-                        if prev_node.type == 'comment':
-                            method_metadata['comment'] = prev_node.text
+                        if prev_node_pool:
+                            method_metadata['comment'] = prev_node_pool \
+                                if method_metadata['comment'] == '' \
+                                else method_metadata['comment'] + '\n' + prev_node_pool
                             # print("==================")
                             # print(method_metadata['comment'])
                             # print("==================")
-                        methods.append(method_metadata)
-                    prev_node = node
+                            prev_node_pool = ""
+                        if method_metadata['comment']:
+                            methods.append(method_metadata)
+                    prev_node_pool += str(node.text, encoding='utf-8')+"\n" if node.type == 'comment'\
+                        else ""
             class_metadata['methods'] = methods
             parsed_classes.append(class_metadata)
         return parsed_classes
@@ -249,15 +250,24 @@ class TestParser():
 
         # Modifiers and Return Value
         for child in function_node.children:
-            if child.type == "modifiers":
+            # print("child.text", child.text)
+            # print("child.type", child.type)
+            # print("============================")
+            if child.type == "state_mutability" or child.type == "override_specifier":
                 metadata['modifiers'] = ' '.join(TestParser.match_from_span(child, blob).split())
+            if child.type == "visibility":
+                metadata['visibility'] = ' '.join(TestParser.match_from_span(child, blob).split())
             if ("type" in child.type):
                 metadata['return'] = TestParser.match_from_span(child, blob)
 
         # Signature
         metadata['signature'] = '{} {}{}'.format(metadata['return'], metadata['identifier'], metadata['parameters'])
-        metadata['full_signature'] = '{} {} {}{}'.format(metadata['modifiers'], metadata['return'],
-                                                         metadata['identifier'], metadata['parameters'])
+        # metadata['signature'] = metadata['body'][0]
+        # metadata['full_signature'] = 'function {} {} {}({})'.format(metadata['modifiers'], metadata['return'],
+        #                                                             metadata['identifier'], metadata['parameters'])
+        metadata['full_signature'] = 'function {}({}) {} {} {}'.format(metadata['identifier'], metadata['parameters'],
+                                                                       metadata['visibility'], metadata['modifiers'],
+                                                                       metadata['return'], )
         metadata['class_method_signature'] = '{}.{}{}'.format(class_identifier, metadata['identifier'],
                                                               metadata['parameters'])
         return metadata
