@@ -83,7 +83,7 @@ class TestParser():
                             prev_node_pool = ""
                         if method_metadata['comment']:
                             methods.append(method_metadata)
-                    prev_node_pool += str(node.text, encoding='utf-8')+"\n" if node.type == 'comment'\
+                    prev_node_pool += str(node.text, encoding='utf-8') + "\n" if node.type == 'comment' \
                         else ""
             class_metadata['methods'] = methods
             parsed_classes.append(class_metadata)
@@ -193,7 +193,8 @@ class TestParser():
             'class_method_signature': '',
             'testcase': '',
             'constructor': '',
-            'comment': ''
+            'comment': '',
+            'virtual': '',
         }
 
         # Parameters
@@ -257,6 +258,8 @@ class TestParser():
                 metadata['modifiers'] = ' '.join(TestParser.match_from_span(child, blob).split())
             if child.type == "visibility":
                 metadata['visibility'] = ' '.join(TestParser.match_from_span(child, blob).split())
+            if child.type == "virtual":
+                metadata['virtual'] = ' '.join(TestParser.match_from_span(child, blob).split())
             if ("type" in child.type):
                 metadata['return'] = TestParser.match_from_span(child, blob)
 
@@ -265,9 +268,10 @@ class TestParser():
         # metadata['signature'] = metadata['body'][0]
         # metadata['full_signature'] = 'function {} {} {}({})'.format(metadata['modifiers'], metadata['return'],
         #                                                             metadata['identifier'], metadata['parameters'])
-        metadata['full_signature'] = 'function {}({}) {} {} {}'.format(metadata['identifier'], metadata['parameters'],
-                                                                       metadata['visibility'], metadata['modifiers'],
-                                                                       metadata['return'], )
+        metadata['full_signature'] = 'function {}({}) {} {} {} {}'.format(metadata['identifier'],
+                                                                          metadata['parameters'],
+                                                                          metadata['visibility'], metadata['virtual'],
+                                                                          metadata['modifiers'], metadata['return'], )
         metadata['class_method_signature'] = '{}.{}{}'.format(class_identifier, metadata['identifier'],
                                                               metadata['parameters'])
         return metadata

@@ -1,8 +1,14 @@
-import json
 import os
 from tqdm import tqdm
 from TestParser import TestParser
-parser = TestParser("libtree-sitter-solidity.so", "solidity")
+import json
+
+# 获取当前脚本的绝对路径，并拼接上 "libtree-sitter-solidity.so"
+current_dir = os.path.abspath(os.path.dirname(__file__))  # 获取当前文件的绝对路径
+libtree_so_path = os.path.join(current_dir, "libtree-sitter-solidity.so")
+
+# 创建 TestParser 实例，传入拼接后的路径
+parser = TestParser(libtree_so_path, "solidity")
 
 sol_files = []
 # change root_path to include your dataset
