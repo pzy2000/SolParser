@@ -24,13 +24,13 @@ for dirpath, dirnames, filenames in os.walk(root_path):
 # 使用 tqdm 对文件进行解析
 parsed_results = {}
 for file_path in tqdm(sol_files, desc="Parsing .sol files"):
-    try:
-        parsed_classes = parser.parse_file(file_path)
-        # pprint(parsed_classes)
-        # if 'comment' in parsed_results.keys():
-        parsed_results[file_path] = parsed_classes
-    except Exception as e:
-        print(f"Error parsing {file_path}: {e}")
+    # try:
+    parsed_classes = parser.parse_file(file_path)
+    # pprint(parsed_classes)
+    # if 'comment' in parsed_results.keys():
+    parsed_results[file_path] = parsed_classes
+    # except Exception as e:
+    # print(f"Error parsing {file_path}: {e}")
 
 # 导出结果到 JSON 文件
 output_json_file = "/root/SolParser/parsed_results.json"

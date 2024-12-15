@@ -3,7 +3,7 @@ from tree_sitter import Language, Parser
 from typing import List, Dict, Any, Set, Optional
 
 
-class TestParser():
+class TestParser:
     def __init__(self, grammar_file, language):
         JAVA_LANGUAGE = Language(grammar_file, language)
         self.parser = Parser()
@@ -18,7 +18,8 @@ class TestParser():
             try:
                 content = content_file.read()
                 self.content = content
-            except:
+            except Exception as e:
+                print(e)
                 return list()
         tree = self.parser.parse(bytes(content, "utf8"))
         # for i, child in enumerate(tree.root_node.children):
@@ -76,13 +77,13 @@ class TestParser():
                         if prev_node_pool:
                             method_metadata['comment'] = prev_node_pool \
                                 if method_metadata['comment'] == '' \
-                                else method_metadata['comment'] + '\n' + prev_node_pool
+                                else str(method_metadata['comment'], encoding='utf-8') + '\n' + prev_node_pool
                             # print("==================")
                             # print(method_metadata['comment'])
                             # print("==================")
                             prev_node_pool = ""
-                        if method_metadata['comment']:
-                            methods.append(method_metadata)
+                        # if method_metadata['comment']:
+                        methods.append(method_metadata)
                     prev_node_pool += str(node.text, encoding='utf-8') + "\n" if node.type == 'comment' \
                         else ""
             class_metadata['methods'] = methods
@@ -195,6 +196,7 @@ class TestParser():
             'constructor': '',
             'comment': '',
             'virtual': '',
+            'id': [],
         }
 
         # Parameters
