@@ -58,6 +58,7 @@ set_seed(args.seed)
 tokenizer = AutoTokenizer.from_pretrained('deepseek-ai/deepseek-coder-6.7b-instruct', use_fast=True)
 model = AutoModelForCausalLM.from_pretrained('deepseek-ai/deepseek-coder-6.7b-instruct', trust_remote_code=True,
                                              torch_dtype=torch.bfloat16, device_map='auto')
+num_return_sequences = 5
 
 
 def read_file_with_indentation(filename):
@@ -87,7 +88,7 @@ def few_shot_inject(args, prompt, tokenizer, model):
             temperature=args.temperature,
             eos_token_id=tokenizer.eos_token_id,
             pad_token_id=tokenizer.eos_token_id,
-            num_return_sequences=1,
+            num_return_sequences=num_return_sequences,
         )
         output_list = []
         for raw_output in raw_outputs:
@@ -119,7 +120,7 @@ with open('prompt_template.txt', 'r', encoding='utf-8') as file:
 with open('parsed_results.json', 'r') as file:
     data = json.load(file)
 
-real_path_cargo = []
+real_path_cargo = {}
 for file_path, file_content in tqdm(data.items()):
     # print("file_path:\n", file_path)
     # if not file_path.endswith("Governor.sol"):
@@ -134,7 +135,7 @@ for file_path, file_content in tqdm(data.items()):
     if not os.path.exists(real_file_path):
         print("Path not found error!!!!!!!!!!!!!!!")
         exit(666)
-    real_path_cargo.append(real_file_path)
+    real_path_cargo[real_file_path] = file_path
     # print("real_file_path", real_file_path)
 print("filter Over!")
 
@@ -150,27 +151,28 @@ def update_id(identifier, file_cont):
 
 
 repo_dir_path = "/root/openzeppelin-contracts"
+number_total = 0
+number_pass = 0
+number_fail = 0
+number_compiled_total = 0
+number_compiled_fail = 0
 for file_path, file_content in tqdm(data.items()):
-    print("file_path:\n", file_path)
     # if not file_path.endswith("Governor.sol"):
     #     continue
-    if file_path not in real_path_cargo:
+    if file_path not in real_path_cargo.keys():
         continue
     if not file_content or not file_content[0]['methods']:
         continue
     if file_path.endswith(".t.sol") or file_path.endswith(".test.sol") \
             or "test" in file_path or "forge" in file_path:
         continue
-    number_total = 0
-    number_pass = 0
-    number_fail = 0
-    number_skip = 0
-    number_compiled_total = 0
-    number_compiled_fail = 0
+    print("file_path:\n", file_path)
+
     for method in file_content[0]['methods']:
         # if "schedule" not in method['full_signature']:
         #     continue
         identifier = method['identifier']
+
         flag = update_id(identifier, file_content[0])
         comment = method['comment']
         if not comment or not flag:
@@ -191,12 +193,14 @@ for file_path, file_content in tqdm(data.items()):
         # print("-----------------")
         # pprint(source)
         # print("-----------------")
+        PASS = False
+        COMPILE_PASS = False
         for out in output_list:
             # print(type(patch))
             # print(type(source))
-            with open(f"temp_patch.txt", 'w') as f:
+            with open(f"patch_{real_path_cargo[file_path].split('/')[-1]}_function_{identifier}.txt", 'w') as f:
                 f.write(out)
-            with open(f"temp_patch.txt", 'r') as f:
+            with open(f"patch_{real_path_cargo[file_path].split('/')[-1]}_function_{identifier}.txt", 'r') as f:
                 patch = f.readlines()
             source_p = "\n".join(source[:start - 1] + patch + source[end:])
             # pprint(source)
@@ -208,43 +212,50 @@ for file_path, file_content in tqdm(data.items()):
                 f.write(source_bk)
             with open(f"{file_path}", 'w') as f:
                 f.write(source_p)
-            test_process = subprocess.run(['forge', 'test'], capture_output=True, cwd=repo_dir_path,
+            match_path = real_path_cargo[file_path].split('/')[-1]
+            print("match_path", match_path)
+            test_process = subprocess.run(['forge', 'test', '--match-path', f'{match_path}'], capture_output=True,
+                                          cwd=repo_dir_path,
                                           timeout=90)
             captured_stdout = test_process.stdout.decode()
             # print("captured_stdout", captured_stdout)
             number_compiled_total += 1
             with open(f"{file_path}", 'w') as f:
                 f.write(source_bk)
+            print("captured_stdout", captured_stdout)
             if "Compiler run failed:" in captured_stdout:
-                number_compiled_fail += 1
-                print("captured_stdout", captured_stdout)
+                COMPILE_PASS = COMPILE_PASS or True
                 continue
             pattern = re.compile(
-                r'Ran\s+(\d+)\s+test suites\s+in\s+([\d.]+)s\s+\(([\d.]+)s CPU time\):\s+'
+                r'Ran\s+(-?\d+)\s+test\s+suites?\s+in\s+([\d.]+)\s*(ms|s)\s+'
+                r'\(([\d.]+)\s*(ms|s)\s+CPU time\):\s+'
                 r'(\d+)\s+tests passed,\s+(\d+)\s+failed,\s+(\d+)\s+skipped\s+\((\d+)\s+total tests\)'
             )
 
             # 使用正则表达式进行匹配
             matches = pattern.findall(captured_stdout)
-            passes = int(matches[-1][3])
-            failures = int(matches[-1][4])
-            skips = int(matches[-1][5])
-            total = int(matches[-1][6])
-            number_pass += 1 if failures == 0 else 0
-            number_fail += 0 if failures == 0 else 1
-            # number_skip += skips
-            number_total += 1
+            print("matches:", matches)
+            print("length:", len(matches))
+            passes = int(matches[-1][5])
+            fails = int(matches[-1][6])
+            skips = int(matches[-1][7])
+            total = int(matches[-1][8])
+            PASS = PASS or True if fails == 0 else PASS or False
             print("============================")
+            print("PASS:", PASS)
             print("passes:", passes)
-            print("failures:", failures)
+            print("failures:", fails)
             print("skips:", skips)
             print("total:", total)
+        number_pass += int(PASS)
+        number_fail += int(not PASS)
+        number_total += 1
+        number_compiled_fail += int(not COMPILE_PASS)
         print("-----------------------------")
         print("number_pass:", number_pass)
         print("number_failures:", number_fail)
-        print("number_skip:", number_skip)
         print("number_total:", number_total)
+        print(f"Pass@{num_return_sequences}:", number_pass / number_total)
         print(f"COMPILE successful rate:", (number_compiled_total - number_compiled_fail) / number_compiled_total)
-        # exit()
 
     # pprint(file_content[0]['methods'])

@@ -25,6 +25,7 @@ for dirpath, dirnames, filenames in os.walk(root_path):
 parsed_results = {}
 for file_path in tqdm(sol_files, desc="Parsing .sol files"):
     # try:
+    if file_path.startswith("/root/openzeppelin-contracts/lib"):continue
     parsed_classes = parser.parse_file(file_path)
     # pprint(parsed_classes)
     # if 'comment' in parsed_results.keys():
