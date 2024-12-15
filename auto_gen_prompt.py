@@ -3,6 +3,8 @@ import argparse
 import json
 import os
 import random
+import re
+import subprocess
 import warnings
 from pprint import pprint
 
@@ -85,7 +87,7 @@ def few_shot_inject(args, prompt, tokenizer, model):
             temperature=args.temperature,
             eos_token_id=tokenizer.eos_token_id,
             pad_token_id=tokenizer.eos_token_id,
-            num_return_sequences=10,
+            num_return_sequences=5,
         )
         output_list = []
         for raw_output in raw_outputs:
@@ -127,22 +129,27 @@ for file_path, file_content in tqdm(data.items()):
     if not (file_path.endswith(".t.sol") or file_path.endswith(".test.sol") \
             or "test" in file_path or "forge" in file_path):
         continue
-    print("file_path", file_path)
+    # print("file_path", file_path)
     real_file_path = multiple_replace(file_path, replacements)
     if not os.path.exists(real_file_path):
         print("Path not found error!!!!!!!!!!!!!!!")
         exit(666)
     real_path_cargo.append(real_file_path)
-    print("real_file_path", real_file_path)
-    print("filter Over!")
+    # print("real_file_path", real_file_path)
+print("filter Over!")
 
 
 def update_id(identifier, file_cont):
+    flag = False
     for method in file_cont['methods']:
         if identifier in method['body']:
             method['id'].append(identifier)
+            flag = True
+
+    return flag
 
 
+repo_dir_path = "/root/openzeppelin-contracts"
 for file_path, file_content in tqdm(data.items()):
     # print("file_path:\n", file_path)
     # if not file_path.endswith("Governor.sol"):
@@ -151,18 +158,92 @@ for file_path, file_content in tqdm(data.items()):
         continue
     if not file_content or not file_content[0]['methods']:
         continue
+    if file_path.endswith(".t.sol") or file_path.endswith(".test.sol") \
+            or "test" in file_path or "forge" in file_path:
+        continue
+    number_total = 0
+    number_pass = 0
+    number_fail = 0
+    number_skip = 0
+    number_compiled_total = 0
+    number_compiled_fail = 0
     for method in file_content[0]['methods']:
         # if "schedule" not in method['full_signature']:
         #     continue
         identifier = method['identifier']
-        update_id(identifier, file_content[0])
+        flag = update_id(identifier, file_content[0])
         comment = method['comment']
-        # function_full_sig = method['full_signature'].strip() + '{' + '\n'
-        # prompt = prompt_temp + '\n' + comment + '\n' + "// Function"
-        # prompt += '\n' + function_full_sig
-        # # print(prompt)
+        if not comment or not flag:
+            continue
+        function_full_sig = method['full_signature'].strip() + '{' + '\n'
+        prompt = prompt_temp + '\n' + comment + '\n' + "// Function"
+        prompt += '\n' + function_full_sig
+        # print(prompt)
         # print("===========================")
-        # output_list = few_shot_inject(args, prompt, tokenizer, model)
-        # output_list = [function_full_sig + output for output in output_list]
+        output_list = few_shot_inject(args, prompt, tokenizer, model)
+        output_list = [function_full_sig + output for output in output_list]
         # print("output_list: ", output_list)
-    pprint(file_content[0]['methods'])
+        start = int(method['start'])
+        end = int(method['end'])
+        with open(f"{file_path}", 'r') as f:
+            source = f.readlines()
+
+        # print("-----------------")
+        # pprint(source)
+        # print("-----------------")
+        for out in output_list:
+            # print(type(patch))
+            # print(type(source))
+            with open(f"temp_patch.txt", 'w') as f:
+                f.write(out)
+            with open(f"temp_patch.txt", 'r') as f:
+                patch = f.readlines()
+            source_p = "\n".join(source[:start - 1] + patch + source[end:])
+            # pprint(source)
+            # print("type:", type(source))
+            with open(f"{file_path}", 'r') as f:
+                source_bk = f.read()
+            file_path_bk = file_path.replace(".sol", ".sol.bak")
+            with open(f"{file_path_bk}", 'w') as f:
+                f.write(source_bk)
+            with open(f"{file_path}", 'w') as f:
+                f.write(source_p)
+            test_process = subprocess.run(['forge', 'test'], capture_output=True, cwd=repo_dir_path,
+                                          timeout=90)
+            captured_stdout = test_process.stdout.decode()
+            print("captured_stdout", captured_stdout)
+            number_compiled_total += 1
+            with open(f"{file_path}", 'w') as f:
+                f.write(source_bk)
+            if "Compiler run failed:" in captured_stdout:
+                number_compiled_fail += 1
+                continue
+            pattern = re.compile(
+                r'Ran\s+(\d+)\s+test suites\s+in\s+([\d.]+)s\s+\(([\d.]+)s CPU time\):\s+'
+                r'(\d+)\s+tests passed,\s+(\d+)\s+failed,\s+(\d+)\s+skipped\s+\((\d+)\s+total tests\)'
+            )
+
+            # 使用正则表达式进行匹配
+            matches = pattern.findall(captured_stdout)
+            passes = int(matches[-1][3])
+            failures = int(matches[-1][4])
+            skips = int(matches[-1][4])
+            total = int(matches[-1][6])
+            number_pass += passes
+            number_fail += failures
+            number_skip += skips
+            number_total += total
+            print("============================")
+            print("passes:", passes)
+            print("failures:", failures)
+            print("skips:", skips)
+            print("total:", total)
+        print("-----------------------------")
+        print("number_pass:", number_pass)
+        print("number_failures:", number_fail)
+        print("number_skip:", number_skip)
+        print("number_total:", number_total)
+        print(f"COMPILE successful rate:", (number_compiled_total - number_compiled_fail) / number_compiled_total)
+        # exit()
+
+    # pprint(file_content[0]['methods'])
