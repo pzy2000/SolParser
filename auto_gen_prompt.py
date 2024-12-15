@@ -219,13 +219,12 @@ for file_path, file_content in tqdm(data.items()):
                                           timeout=90)
             captured_stdout = test_process.stdout.decode()
             # print("captured_stdout", captured_stdout)
-            number_compiled_total += 1
             with open(f"{file_path}", 'w') as f:
                 f.write(source_bk)
             print("captured_stdout", captured_stdout)
             if "Compiler run failed:" in captured_stdout:
-                COMPILE_PASS = COMPILE_PASS or True
                 continue
+            COMPILE_PASS = COMPILE_PASS or True
             pattern = re.compile(
                 r'Ran\s+(-?\d+)\s+test\s+suites?\s+in\s+([\d.]+)\s*(ms|s)\s+'
                 r'\(([\d.]+)\s*(ms|s)\s+CPU time\):\s+'
@@ -250,6 +249,7 @@ for file_path, file_content in tqdm(data.items()):
         number_pass += int(PASS)
         number_fail += int(not PASS)
         number_total += 1
+        number_compiled_total += 1
         number_compiled_fail += int(not COMPILE_PASS)
         print("-----------------------------")
         print("number_pass:", number_pass)
