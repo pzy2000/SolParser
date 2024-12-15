@@ -87,7 +87,7 @@ def few_shot_inject(args, prompt, tokenizer, model):
             temperature=args.temperature,
             eos_token_id=tokenizer.eos_token_id,
             pad_token_id=tokenizer.eos_token_id,
-            num_return_sequences=5,
+            num_return_sequences=1,
         )
         output_list = []
         for raw_output in raw_outputs:
@@ -151,7 +151,7 @@ def update_id(identifier, file_cont):
 
 repo_dir_path = "/root/openzeppelin-contracts"
 for file_path, file_content in tqdm(data.items()):
-    # print("file_path:\n", file_path)
+    print("file_path:\n", file_path)
     # if not file_path.endswith("Governor.sol"):
     #     continue
     if file_path not in real_path_cargo:
@@ -211,12 +211,13 @@ for file_path, file_content in tqdm(data.items()):
             test_process = subprocess.run(['forge', 'test'], capture_output=True, cwd=repo_dir_path,
                                           timeout=90)
             captured_stdout = test_process.stdout.decode()
-            print("captured_stdout", captured_stdout)
+            # print("captured_stdout", captured_stdout)
             number_compiled_total += 1
             with open(f"{file_path}", 'w') as f:
                 f.write(source_bk)
             if "Compiler run failed:" in captured_stdout:
                 number_compiled_fail += 1
+                print("captured_stdout", captured_stdout)
                 continue
             pattern = re.compile(
                 r'Ran\s+(\d+)\s+test suites\s+in\s+([\d.]+)s\s+\(([\d.]+)s CPU time\):\s+'
@@ -227,12 +228,12 @@ for file_path, file_content in tqdm(data.items()):
             matches = pattern.findall(captured_stdout)
             passes = int(matches[-1][3])
             failures = int(matches[-1][4])
-            skips = int(matches[-1][4])
+            skips = int(matches[-1][5])
             total = int(matches[-1][6])
-            number_pass += passes
-            number_fail += failures
-            number_skip += skips
-            number_total += total
+            number_pass += 1 if failures == 0 else 0
+            number_fail += 0 if failures == 0 else 1
+            # number_skip += skips
+            number_total += 1
             print("============================")
             print("passes:", passes)
             print("failures:", failures)
