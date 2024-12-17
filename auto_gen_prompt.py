@@ -8,12 +8,12 @@ import subprocess
 import warnings
 from datetime import datetime
 from pprint import pprint
-
 import numpy as np
 import torch
 from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from logger import MyLogger
+
 
 # 获取当前的年月日时分秒
 current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -120,7 +120,7 @@ def multiple_replace(original, replacements):
 
 replacements = {
     "/openzeppelin-contracts/test/": "/openzeppelin-contracts/contracts/",
-    "/ethernaut.git/contracts/src/": "/ethernaut.git/contracts/test/",
+    "/ethernaut.git/contracts/test/": "/ethernaut.git/contracts/src/",
     ".t.sol": ".sol"
 }
 
@@ -132,7 +132,7 @@ with open('parsed_results.json', 'r') as file:
     data = json.load(file)
 
 real_path_cargo = {}
-for file_path, file_content in tqdm(data.items()):
+for file_path, file_content in data.items():
     # print("file_path:\n", file_path)
     # if not file_path.endswith("Governor.sol"):
     #     continue
@@ -144,15 +144,17 @@ for file_path, file_content in tqdm(data.items()):
     # print("file_path", file_path)
     real_file_path = multiple_replace(file_path, replacements)
     if not os.path.exists(real_file_path):
-        logger.error("Path not found error!!!!!!!!!!!!!!!")
-        exit(666)
+        logger.error(real_file_path+" (real_file_path) not found error!!!!!!!!!!!!!!!")
+        logger.log(file_path+" (file_path) not found error!!!!!!!!!!!!!!!")
+        # exit(666)
     real_path_cargo[real_file_path] = file_path
     # print("real_file_path", real_file_path)
 logger.log("filter Over!")
 
-
 # pprint(real_path_cargo)
 # exit()
+
+
 def update_id(identifier, file_cont):
     flag = False
     for method in file_cont['methods']:
@@ -162,8 +164,10 @@ def update_id(identifier, file_cont):
 
     return flag
 
-
-repo_dir_path = "/root/openzeppelin-contracts"
+cwd_dir_cargo = {
+    "/root/openzeppelin-contracts": "/root/openzeppelin-contracts",
+    "/root/ethernaut": "/root/ethernaut/lib/ethernaut.git/contracts"
+}
 number_total = 0
 number_pass = 0
 number_fail = 0
@@ -173,16 +177,19 @@ for file_path, file_content in tqdm(data.items()):
     # if not file_path.endswith("Governor.sol"):
     #     continue
     if file_path not in real_path_cargo.keys():
+        logger.warn("jumping file_path:\n" + file_path)
         continue
     if not file_content or not file_content[0]['methods']:
+        logger.warn("jumping file_path:\n" + file_path)
         continue
     if file_path.endswith(".t.sol") or file_path.endswith(".test.sol") \
             or "test" in file_path or "forge" in file_path:
+        logger.warn("jumping file_path:\n" + file_path)
         continue
     logger.log("file_path:\n" + file_path)
     for method in file_content[0]['methods']:
-        # if "schedule" not in method['full_signature']:
-        #     continue
+        if "createLevelInstance" not in method['full_signature']:
+            continue
         identifier = method['identifier']
         flag = update_id(identifier, data[real_path_cargo[file_path]][0])
         comment = method['comment']
@@ -227,14 +234,16 @@ for file_path, file_content in tqdm(data.items()):
             with open(f"{file_path}", 'w') as f:
                 f.write(source_p)
             match_path = real_path_cargo[file_path].split('/')[-1]
-            logger.log("match_path" + match_path)
+            logger.log("match_path:\n" + match_path)
+            cwd_key = "/".join(file_path.split('/')[0:3])
+            logger.warn("cwd_key:\n" + cwd_key)
             test_process = subprocess.run(['forge', 'test', '--match-path', f'{match_path}'],
-                                          capture_output=True, cwd=repo_dir_path, timeout=120)
+                                          capture_output=True, cwd=cwd_dir_cargo[cwd_key], timeout=120)
             captured_stdout = test_process.stdout.decode()
             # print("captured_stdout", captured_stdout)
             with open(f"{file_path}", 'w') as f:
                 f.write(source_bk)
-            logger.log("captured_stdout" + captured_stdout)
+            logger.log("captured_stdout:\n" + captured_stdout)
             if "Compiler run failed:" in captured_stdout:
                 log_dict.append({'file_path': file_path, 'real_file_path': real_path_cargo[file_path],
                                  'COMPILE_PASS': False, 'PASS': False,
@@ -285,7 +294,7 @@ for file_path, file_content in tqdm(data.items()):
         logger.log("number_failures: " + str(number_fail))
         logger.log("number_total: " + str(number_total))
         logger.log(f"Pass@{num_return_sequences}: " + str(number_pass / number_total))
-        logger.log(
-            f"COMPILE successful rate: " + str((number_compiled_total - number_compiled_fail) / number_compiled_total))
+        logger.log(f"COMPILE successful rate: " + str((number_compiled_total
+                                                       - number_compiled_fail) / number_compiled_total))
 
     # pprint(file_content[0]['methods'])

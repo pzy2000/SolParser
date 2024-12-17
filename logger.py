@@ -1,9 +1,8 @@
 import os
-import sys
 from datetime import datetime
 from colorama import init, Fore, Style
-
 init(autoreset=True)
+
 
 class MyLogger:
     def __init__(self, logfile_path):
