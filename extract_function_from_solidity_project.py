@@ -2,6 +2,7 @@ import os
 from tqdm import tqdm
 from TestParser import TestParser
 import json
+import time
 
 # 获取当前脚本的绝对路径，并拼接上 "libtree-sitter-solidity.so"
 current_dir = os.path.abspath(os.path.dirname(__file__))  # 获取当前文件的绝对路径
@@ -12,20 +13,22 @@ parser = TestParser(libtree_so_path, "solidity")
 
 sol_files = []
 # change root_path to include your dataset
-root_path = "/root/openzeppelin-contracts"
+root_path_list = ["/root/openzeppelin-contracts", "/root/ethernaut/lib/ethernaut.git/contracts"]
 
 # 遍历目录，获取所有 .sol 文件
-for dirpath, dirnames, filenames in os.walk(root_path):
-    for filename in filenames:
-        if filename.endswith(".sol"):
-            full_path = os.path.join(dirpath, filename)
-            sol_files.append(full_path)
+for root_path in root_path_list:
+    for dirpath, dirnames, filenames in os.walk(root_path):
+        for filename in filenames:
+            if filename.endswith(".sol"):
+                full_path = os.path.join(dirpath, filename)
+                sol_files.append(full_path)
 
 # 使用 tqdm 对文件进行解析
 parsed_results = {}
 for file_path in tqdm(sol_files, desc="Parsing .sol files"):
     # try:
     if file_path.startswith("/root/openzeppelin-contracts/lib"):continue
+    if file_path.startswith("/root/ethernaut/lib/ethernaut.git/contracts/lib"):continue
     parsed_classes = parser.parse_file(file_path)
     # pprint(parsed_classes)
     # if 'comment' in parsed_results.keys():

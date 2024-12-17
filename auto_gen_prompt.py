@@ -6,16 +6,23 @@ import random
 import re
 import subprocess
 import warnings
+from datetime import datetime
 from pprint import pprint
 
 import numpy as np
 import torch
 from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModelForCausalLM
+from logger import MyLogger
+
+# 获取当前的年月日时分秒
+current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+filename = f'output_{current_time}.jsonl'
 
 warnings.filterwarnings("ignore")
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
+log_file = f"log_{current_time}.txt"
+logger = MyLogger(f"logs/{log_file}")
 parser = argparse.ArgumentParser()
 parser.add_argument('--model',
                     help='model to use for code generation. should be one of [CodeLlama,WizardCoder,'
@@ -55,10 +62,13 @@ def set_seed(seed: int):
 
 
 set_seed(args.seed)
-tokenizer = AutoTokenizer.from_pretrained('deepseek-ai/deepseek-coder-6.7b-instruct', use_fast=True)
-model = AutoModelForCausalLM.from_pretrained('deepseek-ai/deepseek-coder-6.7b-instruct', trust_remote_code=True,
+# tokenizer = AutoTokenizer.from_pretrained('deepseek-ai/deepseek-coder-6.7b-instruct', use_fast=True)
+tokenizer = AutoTokenizer.from_pretrained('AlfredPros/CodeLlama-7b-Instruct-Solidity', use_fast=True)
+model = AutoModelForCausalLM.from_pretrained('AlfredPros/CodeLlama-7b-Instruct-Solidity', trust_remote_code=True,
                                              torch_dtype=torch.bfloat16, device_map='auto')
+# device_map='auto')
 num_return_sequences = 5
+log_dict = []
 
 
 def read_file_with_indentation(filename):
@@ -109,7 +119,8 @@ def multiple_replace(original, replacements):
 
 
 replacements = {
-    "/test/": "/contracts/",
+    "/openzeppelin-contracts/test/": "/openzeppelin-contracts/contracts/",
+    "/ethernaut.git/contracts/src/": "/ethernaut.git/contracts/test/",
     ".t.sol": ".sol"
 }
 
@@ -133,13 +144,15 @@ for file_path, file_content in tqdm(data.items()):
     # print("file_path", file_path)
     real_file_path = multiple_replace(file_path, replacements)
     if not os.path.exists(real_file_path):
-        print("Path not found error!!!!!!!!!!!!!!!")
+        logger.error("Path not found error!!!!!!!!!!!!!!!")
         exit(666)
     real_path_cargo[real_file_path] = file_path
     # print("real_file_path", real_file_path)
-print("filter Over!")
+logger.log("filter Over!")
 
 
+# pprint(real_path_cargo)
+# exit()
 def update_id(identifier, file_cont):
     flag = False
     for method in file_cont['methods']:
@@ -166,14 +179,12 @@ for file_path, file_content in tqdm(data.items()):
     if file_path.endswith(".t.sol") or file_path.endswith(".test.sol") \
             or "test" in file_path or "forge" in file_path:
         continue
-    print("file_path:\n", file_path)
-
+    logger.log("file_path:\n" + file_path)
     for method in file_content[0]['methods']:
         # if "schedule" not in method['full_signature']:
         #     continue
         identifier = method['identifier']
-
-        flag = update_id(identifier, file_content[0])
+        flag = update_id(identifier, data[real_path_cargo[file_path]][0])
         comment = method['comment']
         if not comment or not flag:
             continue
@@ -202,6 +213,9 @@ for file_path, file_content in tqdm(data.items()):
                 f.write(out)
             with open(f"patch_{real_path_cargo[file_path].split('/')[-1]}_function_{identifier}.txt", 'r') as f:
                 patch = f.readlines()
+            with open(f"patch_{real_path_cargo[file_path].split('/')[-1]}_function_{identifier}.txt", 'r') as f:
+                patch_st = f.read()
+            patch_length = len(patch)
             source_p = "\n".join(source[:start - 1] + patch + source[end:])
             # pprint(source)
             # print("type:", type(source))
@@ -213,16 +227,20 @@ for file_path, file_content in tqdm(data.items()):
             with open(f"{file_path}", 'w') as f:
                 f.write(source_p)
             match_path = real_path_cargo[file_path].split('/')[-1]
-            print("match_path", match_path)
-            test_process = subprocess.run(['forge', 'test', '--match-path', f'{match_path}'], capture_output=True,
-                                          cwd=repo_dir_path,
-                                          timeout=90)
+            logger.log("match_path" + match_path)
+            test_process = subprocess.run(['forge', 'test', '--match-path', f'{match_path}'],
+                                          capture_output=True, cwd=repo_dir_path, timeout=120)
             captured_stdout = test_process.stdout.decode()
             # print("captured_stdout", captured_stdout)
             with open(f"{file_path}", 'w') as f:
                 f.write(source_bk)
-            print("captured_stdout", captured_stdout)
+            logger.log("captured_stdout" + captured_stdout)
             if "Compiler run failed:" in captured_stdout:
+                log_dict.append({'file_path': file_path, 'real_file_path': real_path_cargo[file_path],
+                                 'COMPILE_PASS': False, 'PASS': False,
+                                 'patch': patch_st, 'comment': comment, 'source_p': source[start:end],
+                                 'Compile_ERROR_Message': captured_stdout, 'FAIL_Message': None,
+                                 'patch_length': patch_length})
                 continue
             COMPILE_PASS = COMPILE_PASS or True
             pattern = re.compile(
@@ -233,29 +251,41 @@ for file_path, file_content in tqdm(data.items()):
 
             # 使用正则表达式进行匹配
             matches = pattern.findall(captured_stdout)
-            print("matches:", matches)
-            print("length:", len(matches))
+            # print("matches:", matches)
+            # print("length:", len(matches))
             passes = int(matches[-1][5])
             fails = int(matches[-1][6])
             skips = int(matches[-1][7])
             total = int(matches[-1][8])
             PASS = PASS or True if fails == 0 else PASS or False
-            print("============================")
-            print("PASS:", PASS)
-            print("passes:", passes)
-            print("failures:", fails)
-            print("skips:", skips)
-            print("total:", total)
+            logger.log("============================")
+            logger.log("PASS: " + str(PASS))
+            logger.log("passes: " + str(passes))
+            logger.log("failures: " + str(fails))
+            logger.log("skips: " + str(skips))
+            logger.log("total: " + str(total))
+            log_dict.append({'file_path': file_path, 'real_file_path': real_path_cargo[file_path],
+                             'COMPILE_PASS': COMPILE_PASS, 'PASS': PASS,
+                             'patch': patch_st, 'comment': comment, 'source_p': source[start:end],
+                             'Compile_ERROR_Message': None, 'FAIL_Message': None if PASS else captured_stdout,
+                             'patch_length': patch_length})
+
+        with open(filename, 'w') as f:
+            for item in log_dict:
+                json.dump(item, f)
+                f.write('\n')  # 每个JSON对象后面加上换行符
+
         number_pass += int(PASS)
         number_fail += int(not PASS)
         number_total += 1
         number_compiled_total += 1
         number_compiled_fail += int(not COMPILE_PASS)
-        print("-----------------------------")
-        print("number_pass:", number_pass)
-        print("number_failures:", number_fail)
-        print("number_total:", number_total)
-        print(f"Pass@{num_return_sequences}:", number_pass / number_total)
-        print(f"COMPILE successful rate:", (number_compiled_total - number_compiled_fail) / number_compiled_total)
+        logger.log("-----------------------------")
+        logger.log("number_pass: " + str(number_pass))
+        logger.log("number_failures: " + str(number_fail))
+        logger.log("number_total: " + str(number_total))
+        logger.log(f"Pass@{num_return_sequences}: " + str(number_pass / number_total))
+        logger.log(
+            f"COMPILE successful rate: " + str((number_compiled_total - number_compiled_fail) / number_compiled_total))
 
     # pprint(file_content[0]['methods'])
