@@ -28,7 +28,7 @@ class MyLogger:
         self._print_to_console(Fore.WHITE, "INFO", message)
 
     def warn(self, message):
-        self._write_to_file("WARN", message)
+        # self._write_to_file("WARN", message)
         self._print_to_console(Fore.YELLOW, "WARN", message)
 
     def error(self, message):

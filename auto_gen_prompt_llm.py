@@ -80,7 +80,7 @@ with open('prompt_template.txt', 'r', encoding='utf-8') as file:
     prompt_temp = file.read()
 
 # 读取 JSON 文件
-with open('parsed_results.json', 'r') as file:
+with open('parsed_results_with_comment.json', 'r') as file:
     data = json.load(file)
 
 
@@ -106,11 +106,10 @@ cwd_dir_cargo = {
 if __name__ == '__main__':
     # 获取当前的年月日时分秒
     current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f'results_{current_time}.jsonl'
-
+    filename = f'results_llm_{current_time}.json'
     warnings.filterwarnings("ignore")
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
-    log_file = f"log_{current_time}.txt"
+    log_file = f"log_llm_{current_time}.txt"
     logger = MyLogger(f"logs/{log_file}")
     parser = argparse.ArgumentParser()
     parser.add_argument('--model',
@@ -191,7 +190,9 @@ if __name__ == '__main__':
             #     continue
             identifier = method['identifier']
             flag = update_id(identifier, data[real_path_cargo[file_path]][0])
-            comment = method['comment']
+            if "llm_comment" not in method.keys():
+                continue
+            comment = method['llm_comment']
             if not comment or not flag:
                 continue
             function_full_sig = method['full_signature'].strip() + ' {' + '\n'
@@ -233,7 +234,7 @@ if __name__ == '__main__':
                 with open(f"{file_path}", 'w') as f:
                     f.write(source_p)
                 match_path = real_path_cargo[file_path].split('/')[-1]
-                logger.log("match_path:\n" + match_path)
+                # logger.warn("match_path:\n" + match_path)
                 cwd_key = "/".join(file_path.split('/')[0:3])
                 logger.warn("cwd_key:\n" + cwd_key)
                 test_process = subprocess.run(['forge', 'test', '--match-path', f'{match_path}'],
@@ -246,14 +247,14 @@ if __name__ == '__main__':
                 if "Compiler run failed:" in captured_stdout:
                     log_dict.append({'file_path': file_path, 'real_file_path': real_path_cargo[file_path],
                                      'COMPILE_PASS': False, 'PASS': False,
-                                     'patch': patch_st, 'comment': comment, 'source_p': source[start:end],
+                                     'patch': patch_st, 'llm_comment': comment, 'source_p': source[start:end],
                                      'Compile_ERROR_Message': captured_stdout, 'FAIL_Message': None,
                                      'patch_length': patch_length})
                     continue
                 COMPILE_PASS = COMPILE_PASS or True
                 pattern = re.compile(
-                    r'Ran\s+(-?\d+)\s+test\s+suites?\s+in\s+([\d.]+)\s*(ms|s)\s+'
-                    r'\(([\d.]+)\s*(ms|s)\s+CPU time\):\s+'
+                    r'Ran\s+(-?\d+)\s+test\s+suites?\s+in\s+([\d.]+)\s*(ms|s|µs)\s+'
+                    r'\(([\d.]+)\s*(ms|s|µs)\s+CPU time\):\s+'
                     r'(\d+)\s+tests passed,\s+(\d+)\s+failed,\s+(\d+)\s+skipped\s+\((\d+)\s+total tests\)'
                 )
 
@@ -274,7 +275,7 @@ if __name__ == '__main__':
                 logger.log("total: " + str(total))
                 log_dict.append({'file_path': file_path, 'real_file_path': real_path_cargo[file_path],
                                  'COMPILE_PASS': COMPILE_PASS, 'PASS': PASS,
-                                 'patch': patch_st, 'comment': comment, 'source_p': source[start:end],
+                                 'patch': patch_st, 'llm_comment': comment, 'source_p': source[start:end],
                                  'Compile_ERROR_Message': None, 'FAIL_Message': None if PASS else captured_stdout,
                                  'patch_length': patch_length})
 

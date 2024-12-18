@@ -5,7 +5,7 @@ from TestParser import TestParser
 
 # change root_path_list to include your dataset
 root_path_list = [
-    # "/root/openzeppelin-contracts",
+    "/root/openzeppelin-contracts",
     "/root/ethernaut/lib/ethernaut.git/contracts"
 ]
 
