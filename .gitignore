@@ -5,3 +5,4 @@
 /.idea/inspectionProfiles/Project_Default.xml
 /.idea/SolParser.iml
 /.idea/vcs.xml
+/openai.py

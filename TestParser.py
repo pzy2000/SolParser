@@ -273,7 +273,8 @@ class TestParser:
         metadata['full_signature'] = 'function {}({}) {} {} {} {}'.format(metadata['identifier'],
                                                                           metadata['parameters'],
                                                                           metadata['visibility'], metadata['virtual'],
-                                                                          metadata['modifiers'], metadata['return'], )
+                                                                          metadata['modifiers'],
+                                                                          metadata['return'], ).strip()
         metadata['class_method_signature'] = '{}.{}{}'.format(class_identifier, metadata['identifier'],
                                                               metadata['parameters'])
         return metadata
