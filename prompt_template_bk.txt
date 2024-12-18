@@ -1,0 +1,40 @@
+I will give you a requirement, please generate a solidity function to solve the requirement.
+
+// Requirement
+@notice Send `_value` tokens to `_to` in behalf of `_from`
+@param _from The address of the sender
+@param _to The address of the recipient
+@param _value the amount to send
+
+
+// Function
+function transferFrom(address _from, address _to, uint256 _value) returns (bool success) {
+    require (_value < allowance[_from][msg.sender]);     // Check allowance
+    allowance[_from][msg.sender] -= _value;
+    _transfer(_from, _to, _value);
+    return true;
+}
+// End
+
+I will give you a requirement, please generate a solidity function to solve the requirement.
+
+// Requirement
+/**
+ * @dev Internal vote casting mechanism: Check that the vote is pending, that it has not been cast yet, retrieve
+ * voting weight using {IGovernor-getVotes} and call the {_countVote} internal function. Uses the _defaultParams().
+ *
+ * Emits a {IGovernor-VoteCast} event.
+ */
+
+// Function
+function _castVote(
+    uint256 proposalId,
+    address account,
+    uint8 support,
+    string memory reason
+) internal virtual returns (uint256) {
+    return _castVote(proposalId, account, support, reason, _defaultParams());
+}
+// End
+
+I will give you a requirement, please generate a solidity function to solve the requirement.
