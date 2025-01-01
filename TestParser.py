@@ -3,7 +3,7 @@ from tree_sitter import Language, Parser
 from typing import List, Dict, Any, Set, Optional
 
 
-class TestParser():
+class TestParser:
     def __init__(self, grammar_file, language):
         JAVA_LANGUAGE = Language(grammar_file, language)
         self.parser = Parser()
@@ -18,7 +18,8 @@ class TestParser():
             try:
                 content = content_file.read()
                 self.content = content
-            except:
+            except Exception as e:
+                print(e)
                 return list()
         tree = self.parser.parse(bytes(content, "utf8"))
         # for i, child in enumerate(tree.root_node.children):
@@ -26,8 +27,8 @@ class TestParser():
         #     print("children", i, ":",  child.text)
         #     print("\n")
         #     pass
-
-        classes = (node for node in tree.root_node.children if node.type == 'contract_declaration')
+        #
+        classes = (node for node in tree.root_node.children if node.type == 'contract_declaration' or node.type == 'library_declaration')
         # print("classes:", classes)
         # pprint(tree.root_node.sexp())
         # for i, child in enumerate(tree.root_node.children):
@@ -70,21 +71,21 @@ class TestParser():
                         # print("type of node.text", type(node.text))
                         pass
                     # if node.type == 'event_definition' or node.type == 'function_definition':
-                    if node.type == 'function_definition':
+                    if node.type == 'function_definition' or node.type == 'constructor_definition':
                         # Read Method metadata
                         method_metadata = TestParser.get_function_metadata(class_identifier, node, content)
-                        if prev_node_pool:
-                            method_metadata['comment'] = prev_node_pool \
-                                if method_metadata['comment'] == '' \
-                                else method_metadata['comment'] + '\n' + prev_node_pool
+                        # if prev_node_pool:
+                            # method_metadata['comment'] = prev_node_pool \
+                            #     if method_metadata['comment'] == '' \
+                            #     else str(method_metadata['comment'], encoding='utf-8') + '\n' + prev_node_pool
                             # print("==================")
                             # print(method_metadata['comment'])
                             # print("==================")
-                            prev_node_pool = ""
-                        if method_metadata['comment']:
-                            methods.append(method_metadata)
-                    prev_node_pool += str(node.text, encoding='utf-8') + "\n" if node.type == 'comment' \
-                        else ""
+                            # prev_node_pool = ""
+                        # if method_metadata['comment']:
+                        methods.append(method_metadata)
+                    # prev_node_pool = prev_node_pool + str(node.text, encoding='utf-8') + "\n" \
+                    #     if node.type == 'comment' else ""
             class_metadata['methods'] = methods
             parsed_classes.append(class_metadata)
         return parsed_classes
@@ -193,8 +194,10 @@ class TestParser():
             'class_method_signature': '',
             'testcase': '',
             'constructor': '',
-            'comment': '',
+            # 'comment': '',
             'virtual': '',
+            'id': [],
+            'visibility': '',
         }
 
         # Parameters
@@ -207,8 +210,8 @@ class TestParser():
             # print("num:", i)
             # print("n.text:", n.text)
             # print("n.type:", n.type)
-            if n.type == 'comment':
-                metadata['comment'] = n.text
+            # if n.type == 'comment':
+            #     metadata['comment'] = n.text
                 # print("comment:", metadata['comment'])
                 # print("metadata['comment']", metadata['comment'])
             if n.type == 'identifier':
@@ -268,10 +271,12 @@ class TestParser():
         # metadata['signature'] = metadata['body'][0]
         # metadata['full_signature'] = 'function {} {} {}({})'.format(metadata['modifiers'], metadata['return'],
         #                                                             metadata['identifier'], metadata['parameters'])
-        metadata['full_signature'] = 'function {}({}) {} {} {} {}'.format(metadata['identifier'],
+        metadata['full_signature'] = '{} {}({}) {} {} {} {}'.format("function" if not metadata['constructor']
+                                                                    else "constructor", metadata['identifier'],
                                                                           metadata['parameters'],
                                                                           metadata['visibility'], metadata['virtual'],
-                                                                          metadata['modifiers'], metadata['return'], )
+                                                                          metadata['modifiers'],
+                                                                          metadata['return'], ).strip()
         metadata['class_method_signature'] = '{}.{}{}'.format(class_identifier, metadata['identifier'],
                                                               metadata['parameters'])
         return metadata
