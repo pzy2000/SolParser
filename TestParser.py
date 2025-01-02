@@ -22,9 +22,13 @@ class TestParser:
                 print(e)
                 return list()
         tree = self.parser.parse(bytes(content, "utf8"))
+        # match pragma_directive from tree.root_node
+        sol_version = [node for node in tree.root_node.children if node.type == 'pragma_directive']
+        import_directive = [node for node in tree.root_node.children if node.type == 'import_directive']
         # for i, child in enumerate(tree.root_node.children):
         #     print("children", i,  ":", child.type)
         #     print("children", i, ":",  child.text)
+        #     print("=========================================")
         #     print("\n")
         #     pass
         #
@@ -83,11 +87,38 @@ class TestParser:
                             # print("==================")
                             # prev_node_pool = ""
                         # if method_metadata['comment']:
+                        sol_v_list = []
+                        for i, sol_text in enumerate(sol_version):
+                            s_text = sol_text.text  # 例如: b'pragma solidity ^0.8.20;'
+                            string_data = s_text.decode('utf-8')
+                            # sol_version[i].text = string_data
+                            sol_v_list.append(string_data)
+                        import_list = []
+                        for i, import_text in enumerate(import_directive):
+                            i_text = import_text.text
+                            string_data = i_text.decode('utf-8')
+                            # import_directive[i].text = string_data
+                            import_list.append(string_data)
+                        # print(type(string_data))  # 输出: <class 'str'>
+                        # print(string_data)  # 输出: pragma solidity ^0.8.20;
+
+                        method_metadata['sol_version'] = sol_v_list if sol_v_list else ""
+                        method_metadata['import_directive'] = import_list if import_list else ""
                         methods.append(method_metadata)
+                        # print("=========================================")
+                        # print("type(sol_version[0].text): ", type(sol_version[0].text))
+                        # print("sol_version[0].text: ", method_metadata['sol_version'])
+                        # print("=========================================")
                     # prev_node_pool = prev_node_pool + str(node.text, encoding='utf-8') + "\n" \
                     #     if node.type == 'comment' else ""
             class_metadata['methods'] = methods
+            # print("=========================================")
+            # print("class_metadata: ", len(class_metadata))
+            # print("=========================================")
             parsed_classes.append(class_metadata)
+        # print("=========================================")
+        # print("parsed_classes: ", parsed_classes)
+        # print("=========================================")
         return parsed_classes
 
     @staticmethod
