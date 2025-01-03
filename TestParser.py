@@ -31,7 +31,6 @@ class TestParser:
         #     print("=========================================")
         #     print("\n")
         #     pass
-        #
         classes = (node for node in tree.root_node.children if node.type == 'contract_declaration'
                    or node.type == 'library_declaration'
                    or node.type == 'interface_declaration')
@@ -45,10 +44,8 @@ class TestParser:
         #     print("children", i, ":",  child.text)
         #     print("\n")
         #     pass
-
         # Parsed Classes
         parsed_classes = list()
-
         # Classes
         for _class in classes:
             # Class metadata
@@ -70,25 +67,26 @@ class TestParser:
                 for _, node in enumerate(child.children):
                     # print("node.type", node.type)
                     # print("node.text", str(node.text, encoding='utf-8'))
-                    if node.type == "fallback_receive_definition" \
-                            or node.type == "state_variable_declaration" \
-                            or node.type == "modifier_definition" \
-                            or node.type == "constructor_definition" \
-                            or node.type == "struct_declaration"\
-                            or node.type == 'error_declaration':
-                        # print("node.type", node.type)
-                        # print("node.text", str(node.text, encoding="utf-8"))
-                        pass
+                    # if node.type == "fallback_receive_definition" \
+                    #         or node.type == "state_variable_declaration" \
+                    #         or node.type == "modifier_definition" \
+                    #         or node.type == "constructor_definition" \
+                    #         or node.type == "struct_declaration"\
+                    #         or node.type == 'error_declaration':
+                    #     # print("node.type", node.type)
+                    #     # print("node.text", str(node.text, encoding="utf-8"))
+                    #     pass
                     # if node.type == 'event_definition' or node.type == 'function_definition':
                     if node.type == 'function_definition' \
                             or node.type == 'constructor_definition' \
                             or node.type == 'error_declaration' \
                             or node.type == 'struct_declaration' \
                             or node.type == "state_variable_declaration" \
-                            or node.type == "modifier_definition"\
+                            or node.type == "modifier_definition" \
                             or node.type == "event_definition":
                         # Read Method metadata
                         # print("before node.type", node.type)
+                        # print("before node.text", str(node.text, encoding='utf-8'))
                         method_metadata = TestParser.get_function_metadata(class_identifier, node, content)
                         sol_v_list = []
                         for i, sol_text in enumerate(sol_version):
@@ -111,11 +109,9 @@ class TestParser:
                         # print("type(sol_version[0].text): ", type(sol_version[0].text))
                         # print("sol_version[0].text: ", method_metadata['sol_version'])
                         # print("=========================================")
-                    # method_metadata['']
-
                     # elif node.type == 'error_declaration':
-                        # print("node.text", str(node.text, encoding='utf-8'))
-                        # pass
+                    # print("node.text", str(node.text, encoding='utf-8'))
+                    # pass
                     # prev_node_pool = prev_node_pool + str(node.text, encoding='utf-8') + "\n" \
                     #     if node.type == 'comment' else ""
             class_metadata['methods'] = methods
@@ -135,21 +131,21 @@ class TestParser:
 		"""
         metadata = {
             'identifier': '',
-            'superclass': '',
+            'superclass': [],
             'interfaces': '',
             'fields': '',
             'argument_list': '',
             'methods': '',
         }
-        # for i, child in enumerate(class_node.children):
-        #     print("children", i, ":",  child.text)
-        #     print("children", i,  ":", child.type)
-        #     print("\n")
-        #     pass
+        for i, child in enumerate(class_node.children):
+            # print("children", i, ":",  child.text)
+            # print("children", i,  ":", child.type)
+            # print("\n")
+            pass
         # Superclass
         superclass = class_node.child_by_field_name('inheritance_specifier')
         if superclass:
-            metadata['superclass'] = TestParser.match_from_span(superclass, blob)
+            metadata['superclass'].append(TestParser.match_from_span(superclass, blob))
 
         # Interfaces
         interfaces = class_node.child_by_field_name('interfaces')
@@ -165,9 +161,11 @@ class TestParser:
             if is_header:
                 if n.type == 'identifier':
                     metadata['identifier'] = TestParser.match_from_span(n, blob).strip('(:')
+                elif n.type == 'inheritance_specifier':
+                    metadata['superclass'].append(TestParser.match_from_span(n, blob))
                 elif n.type == 'argument_list':
                     metadata['argument_list'] = TestParser.match_from_span(n, blob)
-            if n.type == 'class':
+            if n.type == 'interface' or n.type == 'contract':
                 is_header = True
             elif n.type == ':':
                 break
@@ -236,6 +234,9 @@ class TestParser:
             'virtual': '',
             'id': [],
             'visibility': '',
+            'type': '',
+            'type_name': '',
+            'constant': '',
         }
 
         # Parameters
@@ -244,17 +245,21 @@ class TestParser:
         # print("function_node.type.split:  ", function_node.type.split('_')[0])
         TestParser.traverse_type(function_node, declarators, '{}_definition'.format(function_node.type.split('_')[0]))
         TestParser.traverse_type(function_node, declarators, '{}_declaration'.format(function_node.type.split('_')[0]))
+        TestParser.traverse_type(function_node, declarators,
+                                 '{}_variable_declaration'.format(function_node.type.split('_')[0]))
+
         parameters = []
-        # print("declarators:", declarators)
+        # for decl in declarators:
+        #     print("decl.type", decl.type)
         if declarators:
             for i, n in enumerate(declarators[0].children):
                 # print("num:", i)
-                # print("n.text:", n.text)
-                # print("n.type:", n.type)
+                # if declarators[0].type == "state_variable_declaration": print("n.text:", n.text)
+                # if declarators[0].type == "state_variable_declaration": print("n.type:", n.type)
                 # if n.type == 'comment':
                 #     metadata['comment'] = n.text
-                    # print("comment:", metadata['comment'])
-                    # print("metadata['comment']", metadata['comment'])
+                # print("comment:", metadata['comment'])
+                # print("metadata['comment']", metadata['comment'])
                 if n.type == 'identifier':
                     metadata['identifier'] = TestParser.match_from_span(n, blob).strip('(')
                 elif n.type == 'parameter':
@@ -280,14 +285,15 @@ class TestParser:
             # metadata['testcase'] = False
             # for m in modifiers_node_list:
             #     modifier = TestParser.match_from_span(m, blob)
-                # print("modifier:", modifier)
+            # print("modifier:", modifier)
             #     if '@Test' in modifier:
             #         metadata['testcase'] = True
 
             # Method Invocations
             invocation = []
             method_invocations = list()
-            TestParser.traverse_type(function_node, invocation, '{}_invocation'.format(function_node.type.split('_')[0]))
+            TestParser.traverse_type(function_node, invocation,
+                                     '{}_invocation'.format(function_node.type.split('_')[0]))
             for inv in invocation:
                 name = inv.child_by_field_name('name')
                 method_invocation = TestParser.match_from_span(name, blob)
@@ -296,9 +302,9 @@ class TestParser:
 
         # Modifiers and Return Value
         for child in function_node.children:
-            # print("child.text", child.text)
-            # print("child.type", child.type)
-            # print("============================")
+            # if function_node.type == "state_variable_declaration": print("child.text", child.text)
+            # if function_node.type == "state_variable_declaration": print("child.type", child.type)
+            # if function_node.type == "state_variable_declaration": print("============================")
             if child.type == "state_mutability" or child.type == "override_specifier":
                 metadata['modifiers'] = ' '.join(TestParser.match_from_span(child, blob).split())
             if child.type == "visibility":
@@ -307,6 +313,8 @@ class TestParser:
                 metadata['virtual'] = ' '.join(TestParser.match_from_span(child, blob).split())
             if child.type == 'modifier_invocation':
                 metadata['modifiers'] = ' '.join(TestParser.match_from_span(child, blob).split())
+            if child.type == 'constant':
+                metadata['constant'] = ' '.join(TestParser.match_from_span(child, blob).split())
             if "type" in child.type:
                 metadata['return'] = TestParser.match_from_span(child, blob)
 
@@ -317,10 +325,13 @@ class TestParser:
         #                                                             metadata['identifier'], metadata['parameters'])
         metadata['full_signature'] = '{} {}({}) {} {} {} {}'.format("function" if not metadata['constructor']
                                                                     else "constructor", metadata['identifier'],
-                                                                          metadata['parameters'],
-                                                                          metadata['visibility'], metadata['virtual'],
-                                                                          metadata['modifiers'],
-                                                                          metadata['return'], ).strip()
+                                                                    metadata['parameters'],
+                                                                    metadata['visibility'], metadata['virtual'],
+                                                                    metadata['modifiers'],
+                                                                    metadata['return'], ).strip()
+        if function_node.type == "state_variable_declaration":
+            metadata['full_signature'] = '{} {} {} {}'.format(metadata['return'], metadata['visibility'],
+                                                              metadata['constant'], metadata['identifier'])
         metadata['class_method_signature'] = '{}.{}{}'.format(class_identifier, metadata['identifier'],
                                                               metadata['parameters'])
         return metadata
