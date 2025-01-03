@@ -15,7 +15,13 @@ def serialize(obj):
 
 
 if __name__ == '__main__':
-    sol_files = ["demo.sol"]
+    sol_files = [
+        # "demo.sol",
+        # "Errors.sol",
+        # "Context.sol",
+        # "IERC721.sol",
+        "Governor.sol",
+    ]
     # 获取当前脚本的绝对路径，并拼接上 "libtree-sitter-solidity.so"
     current_dir = os.path.abspath(os.path.dirname(__file__))  # 获取当前文件的绝对路径
     libtree_so_path = os.path.join(current_dir, "libtree-sitter-solidity.so")
